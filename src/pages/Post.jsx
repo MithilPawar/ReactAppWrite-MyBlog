@@ -7,6 +7,8 @@ import { useSelector } from "react-redux";
 
 export default function Post() {
     const [post, setPost] = useState(null);
+    const [loading, setLoading] = useState(true);  // Add loading state
+    const [error, setError] = useState(null);  // Add error state
     const { slug } = useParams();
     const navigate = useNavigate();
 
@@ -16,21 +18,55 @@ export default function Post() {
 
     useEffect(() => {
         if (slug) {
-            appwriteService.getPost(slug).then((post) => {
-                if (post) setPost(post);
-                else navigate("/");
-            });
-        } else navigate("/");
+            appwriteService.getPost(slug)
+                .then((fetchedPost) => {
+                    if (fetchedPost) {
+                        setPost(fetchedPost);
+                    } else {
+                        setError("Post not found!");
+                    }
+                })
+                .catch((err) => setError("An error occurred while fetching the post."))
+                .finally(() => setLoading(false));  // Set loading to false once done
+        } else {
+            setError("Invalid post URL.");
+            setLoading(false);
+        }
     }, [slug, navigate]);
 
     const deletePost = () => {
-        appwriteService.deletePost(post.$id).then((status) => {
-            if (status) {
-                appwriteService.deleteFile(post.featuredImage);
-                navigate("/");
-            }
-        });
+        if (window.confirm("Are you sure you want to delete this post?")) {
+            appwriteService.deletePost(post.$id)
+                .then((status) => {
+                    if (status) {
+                        appwriteService.deleteFile(post.featuredImage);
+                        navigate("/");
+                    }
+                })
+                .catch(() => setError("Failed to delete the post."))
+        }
     };
+
+    // Show loading, error, or post content
+    if (loading) {
+        return (
+            <div className="py-8">
+                <Container>
+                    <div className="text-center">Loading post...</div>
+                </Container>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="py-8">
+                <Container>
+                    <div className="text-center text-red-500">{error}</div>
+                </Container>
+            </div>
+        );
+    }
 
     return post ? (
         <div className="py-8">
@@ -41,7 +77,6 @@ export default function Post() {
                         alt={post.title}
                         className="rounded-xl"
                     />
-
                     {isAuthor && (
                         <div className="absolute right-6 top-6">
                             <Link to={`/edit-post/${post.$id}`}>
@@ -60,7 +95,7 @@ export default function Post() {
                 </div>
                 <div className="browser-css">
                     {parse(post.content)}
-                    </div>
+                </div>
             </Container>
         </div>
     ) : null;
